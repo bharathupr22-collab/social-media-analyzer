@@ -1,69 +1,104 @@
-import Image from "next/image";
+"use client";
+
+import { FormEvent, useState } from "react";
 
 export default function Home() {
+  const [url, setUrl] = useState("");
+  const [message, setMessage] = useState("");
+  const [platform, setPlatform] = useState("");
+  const [identifier, setIdentifier] = useState("");
+  const [analyzedUrl, setAnalyzedUrl] = useState("");
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    setMessage("");
+    setPlatform("");
+    setAnalyzedUrl("");
+
+    if (!url.trim()) {
+      setMessage("Please enter a social media URL.");
+      return;
+    }
+
+    try {
+      const response = await fetch("http://127.0.0.1:8000/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url: url.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+  setPlatform(data.platform);
+  setIdentifier(data.identifier);
+  setAnalyzedUrl(data.url);
+      } else {
+        setMessage(data.message);
+      }
+    } catch {
+      setMessage("Unable to connect to the backend.");
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="min-h-screen flex items-center justify-center p-6">
+      <div className="w-full max-w-xl">
+        <h1 className="text-4xl font-bold text-center">
+          Social Media Engagement Analyzer
+        </h1>
+
+        <p className="text-center mt-3 text-gray-600">
+          Enter your social media profile URL to begin analysis.
+        </p>
+
+        <form onSubmit={handleSubmit} className="mt-8">
+          <input
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://www.instagram.com/username/"
+            className="w-full border rounded-lg p-4"
+          />
+
+          <button
+            type="submit"
+            className="w-full mt-4 rounded-lg p-4 font-semibold border"
+          >
+            Analyze
+          </button>
+        </form>
+
+        {platform && (
+          <div className="mt-6 border rounded-lg p-5">
+            <p className="font-semibold">✓ URL Valid</p>
+
+            <p className="mt-4 text-gray-600">Platform</p>
+            <p className="font-semibold text-lg">{platform}</p>
+
+            <p className="mt-4 text-gray-600">Profile Identifier</p>
+            <p className="font-semibold text-lg">{identifier}</p>
+
+            <p className="mt-4 text-gray-600">URL</p>
+            <p className="break-all">{analyzedUrl}</p>
+          </div>
+        )}
+
+        {message && (
+          <p className="text-center mt-5 font-medium">
+            {message}
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+        )}
+
+        <p className="text-center mt-8 text-sm text-gray-500">
+          Instagram • YouTube • X (Twitter)
+        </p>
+      </div>
+    </main>
   );
 }
