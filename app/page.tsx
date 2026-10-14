@@ -9,6 +9,9 @@ export default function Home() {
   const [identifier, setIdentifier] = useState("");
   const [analyzedUrl, setAnalyzedUrl] = useState("");
 
+  const API_URL =
+    process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -22,7 +25,7 @@ export default function Home() {
     }
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/analyze", {
+      const response = await fetch(`${API_URL}/analyze`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -96,7 +99,7 @@ export default function Home() {
         )}
 
         <p className="text-center mt-8 text-sm text-gray-500">
-          Instagram • YouTube • X (Twitter)
+          Instagram
         </p>
       </div>
     </main>

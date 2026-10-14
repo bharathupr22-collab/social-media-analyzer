@@ -50,3 +50,18 @@ __pycache__/
 
 # Allow safe environment template only
 !.env.example
+
+# Python virtual environments
+venv/
+.venv/
+
+# Python generated files
+__pycache__/
+*.py[cod]
+
+# Local SQLite databases
+*.db
+*.db-journal
+
+# Allow safe environment template only
+!.env.example
