@@ -1,11 +1,16 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from urllib.parse import urlparse
 from contextlib import asynccontextmanager
+from sqlalchemy.orm import Session
 
 from metrics import MetricsRequest, fetch_metrics
-from database import init_db
+from database import get_db, init_db
+from models import ConnectedAccount
+from vault import encrypt_token
+import instagram_oauth
+import media_scan
 
 
 @asynccontextmanager
@@ -112,6 +117,124 @@ def analyze_url(request: URLRequest):
         "identifier": identifier,
         "url": url
     }
+
+
+@app.get("/api/instagram/oauth-start")
+def instagram_oauth_start():
+    """Step 1 of Instagram Login: returns the Meta authorization URL.
+    The frontend redirects the admin there; Meta redirects back to
+    /api/instagram/oauth-callback with a code."""
+    try:
+        state = instagram_oauth.new_state()
+        url = instagram_oauth.build_authorize_url(state)
+    except RuntimeError as exc:
+        return {"success": False, "message": str(exc)}
+    return {"success": True, "authorize_url": url}
+
+
+@app.get("/api/instagram/oauth-callback")
+def instagram_oauth_callback(code: str = "", state: str = "", db: Session = Depends(get_db)):
+    """Step 2 of Instagram Login: Meta redirects here with ?code=...&state=...
+    Exchanges the code for a long-lived token and stores it encrypted."""
+    if not code:
+        return {
+            "success": False,
+            "message": "Instagram authorization was cancelled or failed (no code returned).",
+        }
+    if not instagram_oauth.consume_state(state):
+        return {
+            "success": False,
+            "message": "Invalid or expired login session. Please try connecting again.",
+        }
+
+    try:
+        short = instagram_oauth.exchange_code(code)
+        long_lived = instagram_oauth.get_long_lived_token(short["access_token"])
+        profile = instagram_oauth.get_profile(long_lived["access_token"])
+    except RuntimeError as exc:
+        return {"success": False, "message": str(exc)}
+    except Exception:
+        return {"success": False, "message": "Instagram login failed. Please try again."}
+
+    user_id = str(profile.get("id", ""))
+    username = profile.get("username", "")
+
+    try:
+        encrypted = encrypt_token(long_lived["access_token"])
+    except RuntimeError as exc:
+        return {"success": False, "message": str(exc)}
+
+    account = (
+        db.query(ConnectedAccount)
+        .filter(
+            ConnectedAccount.platform == "Instagram",
+            ConnectedAccount.account_id == user_id,
+        )
+        .first()
+    )
+    if account:
+        account.username = username
+        account.access_token_encrypted = encrypted
+    else:
+        account = ConnectedAccount(
+            platform="Instagram",
+            account_id=user_id,
+            username=username,
+            access_token_encrypted=encrypted,
+        )
+        db.add(account)
+    db.commit()
+
+    return {"success": True, "username": username}
+
+
+class ScanRequest(BaseModel):
+    account_id: int | None = None
+    demo: bool = False
+
+
+@app.post("/api/instagram/scan")
+def instagram_scan(req: ScanRequest, db: Session = Depends(get_db)):
+    """Scan an account's reels for missing audio.
+
+    demo=True runs a deterministic sample scan with no network access
+    (for development and viva demos). demo=False uses the connected
+    account's stored token against the live Instagram API.
+    """
+    if req.demo:
+        return {"success": True, **media_scan.scan_demo(db)}
+
+    account = None
+    if req.account_id:
+        account = (
+            db.query(ConnectedAccount)
+            .filter(ConnectedAccount.id == req.account_id)
+            .first()
+        )
+    else:
+        account = (
+            db.query(ConnectedAccount)
+            .filter(
+                ConnectedAccount.platform == "Instagram",
+                ConnectedAccount.account_id != media_scan.DEMO_ACCOUNT_ID,
+            )
+            .order_by(ConnectedAccount.id.desc())
+            .first()
+        )
+
+    if not account:
+        return {
+            "success": False,
+            "message": "No Instagram account connected. Connect one first, or run a demo scan.",
+        }
+
+    try:
+        result = media_scan.scan_live(db, account)
+    except RuntimeError as exc:
+        return {"success": False, "message": str(exc)}
+    except Exception:
+        return {"success": False, "message": "Scan failed. Please try again."}
+    return {"success": True, **result}
 
 
 @app.post("/metrics")

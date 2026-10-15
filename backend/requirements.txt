@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+cryptography
+# Needed for Microsoft SQL Server. Also install "ODBC Driver 18 for SQL Server"
+# from Microsoft, then uncomment:
+# pyodbc

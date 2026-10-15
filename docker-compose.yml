@@ -1,0 +1,22 @@
+# Microsoft SQL Server for local development.
+# 1) docker compose up -d
+# 2) Set DATABASE_URL in backend/.env to:
+#    mssql+pyodbc://sa:YourStrong!Passw0rd@localhost:1433/social_analyzer?driver=ODBC+Driver+18+for+SQL+Server
+#    (also install "ODBC Driver 18 for SQL Server" + pyodbc)
+# 3) Create the database once: docker exec -it <container> /opt/mssql-tools/bin/sqlcmd \
+#      -S localhost -U sa -P 'YourStrong!Passw0rd' -Q "CREATE DATABASE social_analyzer"
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "YourStrong!Passw0rd"
+      MSSQL_PID: "Developer" # free Developer edition
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+
+volumes:
+  sqlserver-data:
