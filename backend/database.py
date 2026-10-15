@@ -1,25 +1,35 @@
+"""Database setup: SQLAlchemy engine, sessions, and table creation.
+
+DATABASE_URL env var selects the backend. Defaults to a local SQLite file
+so the app runs with zero setup; point it at SQL Server for the real DB:
+
+    mssql+pyodbc://sa:<password>@localhost:1433/social_analyzer?driver=ODBC+Driver+18+for+SQL+Server
+"""
+
 import os
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Default to SQLite for local testing; override with MS SQL Server via DATABASE_URL env var
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./social_media.db")
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./analyzer.db")
 
-# check_same_thread=False is required only when using SQLite with FastAPI
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
-)
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()
 
 
 def get_db():
-    """FastAPI dependency that provides a database session per request."""
+    """FastAPI dependency: yields a DB session per request."""
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+
+def init_db() -> None:
+    import models  # noqa: F401  (registers models with Base)
+
+    Base.metadata.create_all(bind=engine)
